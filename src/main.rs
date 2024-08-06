@@ -22,14 +22,31 @@ fn main() {
 
                 let basic = http_request[0].split(' ').collect::<Vec<&str>>();
                 let path = basic[1];
+                let path_parts = path.split('/').collect::<Vec<&str>>();
+                let route = path_parts[1];
 
+                println!("path_parts: {:?}", path_parts);
                 println!("Path: {path}");
 
                 let mut response = "HTTP/1.1 404 Not Found\r\n\r\n".to_owned();
 
-                if path == "/" {
-                    "HTTP/1.1 200 OK\r\n\r\n".clone_into(&mut response);
+                match route {
+                    "" => {
+                        "HTTP/1.1 200 OK\r\n\r\n".clone_into(&mut response);
+                    }
+                    "echo" => {
+                        let value = if path_parts.len() > 2 {
+                            path_parts[2]
+                        } else {
+                            ""
+                        };
+
+                        format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}", value.len(), value).clone_into(&mut response);
+                    }
+                    _ => {}
                 }
+
+                println!("response: {}", response);
 
                 tcp_stream
                     .write_all(response.as_bytes())

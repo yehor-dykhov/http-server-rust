@@ -25,14 +25,15 @@ fn main() {
                 let path_parts = path.split('/').collect::<Vec<&str>>();
                 let route = path_parts[1];
 
+                println!("http_request: {:?}", http_request);
                 println!("path_parts: {:?}", path_parts);
                 println!("Path: {path}");
 
-                let mut response = "HTTP/1.1 404 Not Found\r\n\r\n".to_owned();
+                let mut response_query = "HTTP/1.1 404 Not Found\r\n\r\n".to_owned();
 
                 match route {
                     "" => {
-                        "HTTP/1.1 200 OK\r\n\r\n".clone_into(&mut response);
+                        "HTTP/1.1 200 OK\r\n\r\n".clone_into(&mut response_query);
                     }
                     "echo" => {
                         let value = if path_parts.len() > 2 {
@@ -41,15 +42,26 @@ fn main() {
                             ""
                         };
 
-                        format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}", value.len(), value).clone_into(&mut response);
+                        let response = format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}", value.len(), value);
+                        response.clone_into(&mut response_query);
+                    }
+                    "user-agent" => {
+                        let user_agent = http_request.iter().find(|s| s.contains("User-Agent"));
+
+                        if let Some(ua) = user_agent {
+                            let ua_data = ua.split(' ').collect::<Vec<&str>>();
+                            let value = ua_data[1];
+                            let response = format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}", value.len(), value);
+                            response.clone_into(&mut response_query)
+                        }
                     }
                     _ => {}
                 }
 
-                println!("response: {}", response);
+                println!("response: {}", response_query);
 
                 tcp_stream
-                    .write_all(response.as_bytes())
+                    .write_all(response_query.as_bytes())
                     .expect("send response");
             }
             Err(e) => println!("couldn't get client: {:?}", e),

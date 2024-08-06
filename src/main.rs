@@ -1,5 +1,7 @@
+use itertools::Itertools;
+use std::fs::read;
 use std::io::BufRead;
-use std::str;
+use std::{env, str};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
@@ -32,10 +34,6 @@ async fn main() {
             let path_parts = path.split('/').collect::<Vec<&str>>();
             let route = path_parts[1];
 
-            println!("http_request: {:?}", http_request);
-            println!("path_parts: {:?}", path_parts);
-            println!("Path: {path}");
-
             let mut response_query = "HTTP/1.1 404 Not Found\r\n\r\n".to_owned();
 
             match route {
@@ -62,8 +60,40 @@ async fn main() {
                     if let Some(ua) = user_agent {
                         let ua_data = ua.split(' ').collect::<Vec<&str>>();
                         let value = ua_data[1];
-                        let response = format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}", value.len(), value);
+                        let response = format!(
+                            "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}",
+                            value.len(),
+                            value
+                        );
                         response.clone_into(&mut response_query)
+                    }
+                }
+                "files" => {
+                    let args: Vec<String> = env::args().collect();
+
+                    let file_name = if path_parts.len() > 2 {
+                        path_parts[2]
+                    } else {
+                        ""
+                    };
+
+                    let file_path = if let Some((index, _)) =
+                        &args.iter().find_position(|arg| arg.contains("--directory"))
+                    {
+                        &args[index + 1]
+                    } else {
+                        ""
+                    };
+
+                    if let Ok(data) = read(format!("{file_path}/{file_name}")) {
+                        let txt: &str = str::from_utf8(&data).expect("Convert to string");
+
+                        let response = format!(
+                            "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\n\r\n{}",
+                            txt.len(),
+                            txt
+                        );
+                        response.clone_into(&mut response_query);
                     }
                 }
                 _ => {}

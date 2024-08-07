@@ -70,13 +70,17 @@ async fn main() {
                             ""
                         };
 
+                        let mut content_encoded = "".to_owned();
                         let accept_encoding = headers.get("accept-encoding");
 
-                        let content_encoded = if accept_encoding.is_some() && accept_encoding.unwrap().eq("gzip") {
-                            format!("\r\nContent-Encoding: {}", accept_encoding.unwrap())
-                        } else {
-                            "".to_owned()
-                        };
+                        if let Some(encoding) = accept_encoding {
+                            let encoding = encoding.split(", ").collect::<Vec<&str>>();
+                            let accepted = encoding.into_iter().find(|s| s.contains("gzip"));
+
+                            if let Some(s) = accepted {
+                                content_encoded = format!("\r\nContent-Encoding: {}", s);
+                            }
+                        }
 
                         let response = format!(
                             "HTTP/1.1 200 OK{}\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}",

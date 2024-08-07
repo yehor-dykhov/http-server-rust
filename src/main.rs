@@ -1,4 +1,5 @@
-use itertools::Itertools;
+mod utils;
+
 use std::cmp::PartialEq;
 use std::fs::read;
 use std::io::BufRead;
@@ -6,6 +7,7 @@ use std::{env, str};
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
+use crate::utils::{extract_headers, get_path};
 
 #[derive(PartialEq)]
 enum Method {
@@ -22,27 +24,6 @@ impl From<&str> for Method {
             _ => Method::Invalid,
         }
     }
-}
-
-fn get_path(path_parts: Vec<&str>, args: Vec<String>) -> Option<String> {
-    let file_name = if path_parts.len() > 2 {
-        path_parts[2]
-    } else {
-        ""
-    };
-
-    let file_path =
-        if let Some((index, _)) = &args.iter().find_position(|arg| arg.contains("--directory")) {
-            &args[index + 1]
-        } else {
-            ""
-        };
-
-    if file_name.is_empty() || file_path.is_empty() {
-        return None;
-    }
-
-    Some(format!("{}/{}", file_path, file_name))
 }
 
 #[tokio::main]
@@ -72,6 +53,8 @@ async fn main() {
             let path = basic[1];
             let path_parts = path.split('/').collect::<Vec<&str>>();
             let route = path_parts[1];
+            let headers = extract_headers(&http_request);
+            println!("HEADERS: {:?}", &headers);
 
             let mut response_query = "HTTP/1.1 404 Not Found\r\n\r\n".to_owned();
 
@@ -87,19 +70,26 @@ async fn main() {
                             ""
                         };
 
+                        let accept_encoding = headers.get("accept-encoding");
+
+                        let content_encoded = if accept_encoding.is_some() && accept_encoding.unwrap().eq("gzip") {
+                            format!("\r\nContent-Encoding: {}", accept_encoding.unwrap())
+                        } else {
+                            "".to_owned()
+                        };
+
                         let response = format!(
-                            "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}",
+                            "HTTP/1.1 200 OK{}\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}",
+                            content_encoded,
                             value.len(),
                             value
                         );
                         response.clone_into(&mut response_query);
                     }
                     "user-agent" => {
-                        let user_agent = http_request.iter().find(|s| s.contains("User-Agent"));
+                        let user_agent = headers.get("user-agent");
 
-                        if let Some(ua) = user_agent {
-                            let ua_data = ua.split(' ').collect::<Vec<&str>>();
-                            let value = ua_data[1];
+                        if let Some(value) = user_agent {
                             let response = format!(
                                 "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}",
                                 value.len(),
@@ -135,11 +125,10 @@ async fn main() {
                         let file_path = get_path(path_parts, args);
 
                         if let Some(path) = file_path {
-                            let content_length =
-                                http_request.iter().find(|s| s.contains("Content-Length"));
+                            let content_length = headers.get("content-length");
 
                             if let Some(len_data) = content_length {
-                                let len = len_data.split(' ').collect::<Vec<&str>>()[1];
+                                let len = len_data.parse::<u32>().unwrap();
                                 let content = http_request.last().unwrap();
                                 println!("len: {}", len);
 

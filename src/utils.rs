@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use itertools::Itertools;
+use std::collections::HashMap;
 
 pub fn get_path(path_parts: Vec<&str>, args: Vec<String>) -> Option<String> {
     let file_name = if path_parts.len() > 2 {
@@ -29,7 +29,8 @@ pub fn extract_headers(headers: &[String]) -> HashMap<String, String> {
         .map(|s| {
             let parts = s.split(": ").collect::<Vec<&str>>();
             (parts[0].to_lowercase(), parts[1].to_lowercase())
-        }).collect::<Vec<(String, String)>>();
+        })
+        .collect::<Vec<(String, String)>>();
 
     HashMap::from_iter(headers.iter().cloned())
 }
